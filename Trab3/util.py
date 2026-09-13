@@ -1,38 +1,29 @@
+"""Utilitários compartilhados pelo jogo."""
+from collections import defaultdict
 import pygame
 
-def singleton(class_):
-    instances = { } 
-    def getinstance(*args, **kwargs):
-        if class_ not in instances:
-            instances[class_] = class_(*args, **kwargs)	# cria se ainda não existe
-        return instances[class_] # armazena para mais tarde
-    return getinstance # devolve a instância unica
 
-@singleton
-class EventHandler:
-    def __init__(self):
-        self.observers = { }  # passa a ser um dicionário onde chave é o tipo de evento
-
-    def subscribe(self, type, callback): # passa o tipo de evento também
-        if type not in self.observers: # caso não exista ainda
-            self.observers[type] = [ ]  # cria um novo tipo de evento para notificar
-        self.observers[type].append(callback) # inscreve a chamada ao evento
-
-    def notify(self, type, data):
-        if type in self.observers: # checa se tem eventos desse tipo
-            for o in self.observers[type]: # para todos os inscritos nele
-                o(data) # avise que o evento ocorreu
+class EventBus:
+    """Canal de comunicação entre objetos sem referências diretas."""
+    def __init__(self): self._listeners = defaultdict(list)
+    def subscribe(self, event_name, callback): self._listeners[event_name].append(callback)
+    def emit(self, event_name, **payload):
+        for callback in tuple(self._listeners[event_name]): callback(**payload)
 
 
-def colored_sprite(color, size=(32, 32), circle = True):
-    sprite = pygame.Surface(size)
-    if circle:
-        sprite.set_colorkey((0,0,0))
-        pygame.draw.circle(sprite, color, (size[0]//2, size[1]//2), size[0]//2)
-    else:
-        sprite.fill(color)
-    return sprite
+def circles_overlap(first, second):
+    return first.position.distance_squared_to(second.position) <= (first.radius + second.radius) ** 2
 
-def circle_collistiion (p1, r1, p2, r2):
-    euc_distance = ((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)**(1/2)
-    return  euc_distance <= r1 + r2
+
+def clamp_position(position, radius, width, height):
+    position.x = max(radius, min(width - radius, position.x))
+    position.y = max(radius, min(height - radius, position.y))
+    return position
+
+
+def draw_bar(surface, position, size, value, maximum, color):
+    ratio = max(0, min(1, value / maximum))
+    outer = pygame.Rect(position, size)
+    pygame.draw.rect(surface, (24, 28, 42), outer, border_radius=4)
+    inner = outer.copy(); inner.width = int(outer.width * ratio)
+    pygame.draw.rect(surface, color, inner, border_radius=4)
