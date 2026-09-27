@@ -63,10 +63,7 @@ def reflect(poly, point, velocity, restitution=1.9, min_kick=70):
         velocity[0] -= (1 + restitution) * dot * normal[0]
         velocity[1] -= (1 + restitution) * dot * normal[1]
         dot = velocity[0] * normal[0] + velocity[1] * normal[1]
-    # Garante uma velocidade mínima saindo da superfície. Sem isso, a bola
-    # pode ficar "quicando fraquinho" pra sempre presa entre dois rails
-    # bem próximos (como o cantinho perto do dreno direito), já que a
-    # restituição das rails é < 1 e vai perdendo energia a cada toque.
+    
     if dot < min_kick:
         boost = min_kick - dot
         velocity[0] += boost * normal[0]
@@ -83,11 +80,6 @@ def bounce_off_circle(center, radius, ball, restitution=1.65, min_kick=260):
     dist = math.hypot(dx, dy)
     normal = (dx / dist, dy / dist) if dist else (0.0, -1.0)
 
-    # Pequeno ruído na direção da normal. Sem isso, uma bola que cai
-    # perfeitamente alinhada com o centro do bumper (sem nenhuma velocidade
-    # horizontal) entra num loop vertical perfeito e determinístico: sobe
-    # reto, bate no teto, desce reto, bate no bumper nesse mesmo eixo, pra
-    # sempre. Bola real nunca bate tão simétrica assim.
     jitter = random.uniform(-0.05, 0.05)
     cos_j, sin_j = math.cos(jitter), math.sin(jitter)
     normal = (
@@ -101,43 +93,26 @@ def bounce_off_circle(center, radius, ball, restitution=1.65, min_kick=260):
         ball["vy"] -= (1 + restitution) * speed_along_normal * normal[1]
         speed_along_normal = ball["vx"] * normal[0] + ball["vy"] * normal[1]
 
-    # Garante um "pop" mínimo em qualquer contato, mesmo de raspão (ângulo
-    # quase tangente). Sem isso, um toque de raspão dá um empurrão fraco
-    # demais, a gravidade traz a bola de volta, e ela fica "vibrando"
-    # grudada na borda do bumper em vez de sair de verdade.
     if speed_along_normal < min_kick:
         boost = min_kick - speed_along_normal
         ball["vx"] += boost * normal[0]
         ball["vy"] += boost * normal[1]
 
-    # Reposiciona a bola exatamente na borda do círculo (+ folga), garantindo
-    # que ela sempre saia de dentro do bumper, não importa a profundidade
-    # da penetração no frame anterior.
     target = radius + ball["r"] + 1
     ball["x"] = center[0] + normal[0] * target
     ball["y"] = center[1] + normal[1] * target
     return normal
 
-
-# Polygon side rails form a trapezoid and guide the ball away from the corners.
 rails = [
     [(88, 570), (104, 572), (164, 105), (148, 105)],
     [(696, 572), (712, 570), (652, 105), (636, 105)],
-    # Inward slanted guides feed the ball toward the flippers.
     [(122, 459), (134, 450), (251, 526), (242, 539)],
     [(678, 459), (666, 450), (549, 526), (558, 539)],
-    # Ceiling: fecha a abertura de topo do feltro (antes era só um risco
-    # decorativo). Sem isso a bola escapa por cima quando um bumper manda
-    # ela pra cima com força.
     [(148, 88), (636, 88), (636, 100), (148, 100)],
 ]
 
-# Velocidade máxima permitida pra bola (evita "explosão" de velocidade
-# quando a bola fica presa/encostada numa forma por vários sub-passos
-# seguidos e recebe impulso de restituição repetidas vezes).
 MAX_SPEED = 900
 
-# Triangular slingshots reflect the ball and make the lower playfield read as pinball.
 slingshots = [
     [(130, 421), (253, 465), (221, 510)],
     [(670, 421), (547, 465), (579, 510)],
@@ -149,7 +124,6 @@ bumpers = [
     {"center": (400, 275), "radius": 38, "points": regular((400, 275), 38), "color": GOLD, "value": 1000},
 ]
 
-# Three small polygon target inserts score on contact without redirecting the ball.
 score_zones = [
     {"points": [(325, 365), (345, 355), (351, 394), (331, 399)], "value": 250, "color": PURPLE, "name": "250"},
     {"points": [(390, 359), (410, 359), (414, 398), (386, 398)], "value": 250, "color": PURPLE, "name": "250"},
@@ -169,11 +143,6 @@ def launch_ball():
     global ball, balls_left, trail, active_zones, active_bumpers, game_over
     if ball is None and balls_left > 0:
         balls_left -= 1
-        # Lança do canto inferior direito, como um plunger real, com um
-        # tiro diagonal pra cima e pra esquerda dentro da mesa.
-        # Entra pela lateral direita, numa faixa livre de obstáculos (acima
-        # dos slingshots/guias, abaixo dos bumpers), correndo pra dentro
-        # da mesa em vez de subir apertada pelo cantinho do flipper.
         ball = {"x": 620.0, "y": 300.0, "vx": random.uniform(-260, -200), "vy": random.uniform(-60, 60), "r": 9}
         trail = []
         active_zones = set()
@@ -183,7 +152,6 @@ def launch_ball():
 
 def draw_board(left_flipper, right_flipper, left_up, right_up):
     screen.fill(INK)
-    # Score panel styled like a simple cabinet backglass.
     pygame.draw.rect(screen, (65, 39, 25), (35, 16, 730, 58), border_radius=5)
     pygame.draw.rect(screen, MINT, (35, 16, 730, 58), width=2, border_radius=5)
     screen.blit(title_font.render("PINBALL", True, WHITE), (52, 29))
@@ -191,7 +159,6 @@ def draw_board(left_flipper, right_flipper, left_up, right_up):
     screen.blit(ui_font.render(f"PONTOS  {score:06d}", True, GOLD), (475, 35))
     screen.blit(ui_font.render(f"BOLAS  {balls_left}", True, WHITE), (665, 35))
 
-    # Wooden cabinet, flat green playfield, and metal perimeter rails.
     cabinet = [(110, 82), (690, 82), (724, 602), (76, 602)]
     pygame.draw.polygon(screen, (93, 53, 30), cabinet)
     pygame.draw.polygon(screen, (176, 125, 67), cabinet, 6)
@@ -204,11 +171,9 @@ def draw_board(left_flipper, right_flipper, left_up, right_up):
         right_edge = round(658 + 43 * t - 12)
         pygame.draw.line(screen, GRID, (left_edge, y), (right_edge, y), 1)
 
-    # Marca o ponto do lançador, na lateral direita.
     pygame.draw.circle(screen, GOLD, (620, 300), 6)
     screen.blit(small_font.render("LANÇADOR", True, WHITE), (626, 293))
 
-    # Irregular scoring zones are visually distinct from physical rails.
     for zone in score_zones:
         pygame.draw.polygon(screen, (*zone["color"],), zone["points"])
         pygame.draw.polygon(screen, WHITE, zone["points"], 2)
@@ -217,7 +182,6 @@ def draw_board(left_flipper, right_flipper, left_up, right_up):
         label = small_font.render(zone["name"], True, INK)
         screen.blit(label, label.get_rect(center=center))
 
-    # Physical rails and classic red triangular sling pieces.
     for rail in rails:
         pygame.draw.polygon(screen, (120, 102, 76), rail)
         pygame.draw.polygon(screen, (237, 215, 168), rail, 2)
@@ -227,7 +191,6 @@ def draw_board(left_flipper, right_flipper, left_up, right_up):
         center = (sum(p[0] for p in sling) // 3, sum(p[1] for p in sling) // 3)
         pygame.draw.circle(screen, WHITE, center, 3)
 
-    # Classic round bumpers with concentric rings.
     for bumper in bumpers:
         pygame.draw.circle(screen, (73, 43, 30), bumper["center"], bumper["radius"] + 5)
         pygame.draw.circle(screen, WHITE, bumper["center"], bumper["radius"], 4)
@@ -237,7 +200,6 @@ def draw_board(left_flipper, right_flipper, left_up, right_up):
         value = small_font.render(str(bumper["value"]), True, WHITE)
         screen.blit(value, value.get_rect(center=(bumper["center"][0], bumper["center"][1] + 51)))
 
-    # Drain markings and flippers.
     pygame.draw.line(screen, (29, 38, 33), (292, 581), (508, 581), 4)
     pygame.draw.polygon(screen, (238, 205, 120) if left_up else (225, 220, 196), left_flipper)
     pygame.draw.polygon(screen, (103, 76, 47), left_flipper, 2)
@@ -333,9 +295,6 @@ while running:
                         score += zone["value"]
                         active_zones.add(i)
 
-            # Trava de segurança: se a bola acumulou velocidade demais (ex.:
-            # vários bumpers seguidos, cada um com restituição > 1), limita
-            # a velocidade máxima pra ela nunca "voar" pra fora da tela.
             current_speed = math.hypot(ball["vx"], ball["vy"])
             if current_speed > MAX_SPEED:
                 scale = MAX_SPEED / current_speed
